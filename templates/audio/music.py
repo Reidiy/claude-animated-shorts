@@ -1,3 +1,5 @@
+# Per-short file: this is the bridge score. Rewrite the sections and notes for a new short; timings come from
+# timeline.py (shots.json) and events.py.
 # Original light comedic military march for the bridge short, composed and synthesized here (Bb major, 120 bpm:
 # one quarter note = one footfall, the beat grid t = k * 0.5 s is the soldiers' step grid in every marching shot).
 # Sections follow the picture: hook tutti + whistlers | story march (band) | whistler solo -> column chorus -> nervous
@@ -8,6 +10,7 @@ import numpy as np
 from dsp import SR, ns, rng, pan, place, fades, dbg, make_ir, convolve_st, integrated, lp, hp
 import instruments as I
 import timeline as T
+import events as E
 
 N = ns(T.DUR)
 Q = 0.5  # quarter note (s)
@@ -283,8 +286,8 @@ def build():
     b.cues.append((43.43, "warm return: pad Bb - Eb/Bb - Bb - F7, soft low brass, vibes pendulum on each sway extreme (84 bpm)"))
 
     # ============ SWING 47.24 - 54: music-box waltz, one bar per swing cycle, downbeat = each push
-    bar_t = [T.PUSH0 + (k - 1) * T.SWING_T for k in range(5)]   # 47.24 intro, then the four pushes
-    beat = T.SWING_T / 3
+    bar_t = [E.PUSH0 + (k - 1) * E.SWING_T for k in range(5)]   # 47.24 intro, then the four pushes
+    beat = E.SWING_T / 3
     ch3 = ["Bb", "Bb", "Eb", "F7", "Bb"]
     bass = [46, 46, 39, 41, 46]
     up = [[None, None, 77], [82, 86, 89], [87, 91, 94], [89, 93, 96], [94, None, None]]
@@ -322,14 +325,14 @@ def build():
     # ============ RULE 58.9 - 62: snare roll into brass stabs + timpani on the three hammer blows (I - V - I)
     roll(b, 58.85, 59.77, 0.12, 0.55)
     roll(b, 60.5, 61.67, 0.1, 0.6)
-    stabs = [(T.HITS[0], [46, 53, 58, 62, 65], 46, 0.7), (T.HITS[1], [41, 53, 57, 60, 65], 41, 0.72), (T.HITS[2], [46, 53, 58, 62, 65, 70], 46, 0.75)]
+    stabs = [(E.HITS[0], [46, 53, 58, 62, 65], 46, 0.7), (E.HITS[1], [41, 53, 57, 60, 65], 41, 0.72), (E.HITS[2], [46, 53, 58, 62, 65, 70], 46, 0.75)]
     for (th, ms, tm, v) in stabs:
         for m in ms:
             b.add("stab", I.brass(F(m), 0.18, v, _r(), "stab", scoop=-12), th, (m - 56) / 22)
         b.add("timpani", I.timpani(F(tm), v, _r()), th, -0.1)
-    b.add("cymbal", I.cymbal(0.25, _r(), dur=1.2), T.HITS[2], 0.0)
+    b.add("cymbal", I.cymbal(0.25, _r(), dur=1.2), E.HITS[2], 0.0)
     b.cues.append((58.85, "snare roll pp-mf into the rule"))
-    b.cues.append((T.HITS[0], "brass stab Bb + timpani on hammer blow 1 ('rule'), F on blow 2 ('Never'), Bb + cymbal on blow 3 ('step')"))
+    b.cues.append((E.HITS[0], "brass stab Bb + timpani on hammer blow 1 ('rule'), F on blow 2 ('Never'), Bb + cymbal on blow 3 ('step')"))
 
     # ============ TOURISTS 62 - 67.5: lazy swung version, vibes melody laid back, walking pizz bass, brushes
     tn = theme(62.0, bars=[1, 2], swing=True, late=0.025)
