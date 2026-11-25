@@ -1,6 +1,6 @@
-# Final mix of "The Bridge That Fell for a Song": the voice (gain only) + original march score (ducked under speech,
-# per-section level automation relative to the voice) + synthesized SFX stem. Master gain to -15 LUFS integrated,
-# own 4x-oversampled look-ahead limiter for <= -1 dBTP, exactly 67.500 s / 48 kHz / stereo / 24-bit.
+# Final mix of the short (title, section targets, rides and report sections come from events.py): the voice
+# (gain only) + original march score (ducked under speech, per-section level automation relative to the voice) + synthesized SFX stem. Master gain to -15 LUFS integrated,
+# own 4x-oversampled look-ahead limiter for <= -1 dBTP, exactly the picture length / 48 kHz / stereo / 24-bit.
 # Writes mix.wav + stem_voice/music/sfx.wav (at mix gain, pre-limiter), cues.md (every SFX event, music map,
 # loudness report). Rendered stems are cached in _cache/ so a crash never costs a full re-render.
 import os
@@ -12,34 +12,21 @@ import numpy as np
 from scipy import ndimage, signal
 from dsp import (SR, ns, st, dbg, read_wav, write_wav, integrated, momentary, momentary_max, short_term, lra, true_peak, fades)
 import timeline as T
+import events as E
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 CACHE = os.path.join(HERE, "_cache")
-N = ns(T.DUR)                    # 3,240,000 samples = 67.500 s
+N = ns(T.DUR)                    # exact picture length in samples
 TARGET_LUFS = -15.0
 CEIL_DBTP = -1.2                 # limiter ceiling (spec: true peak <= -1 dBTP)
 DUCK_DB = -3.0                   # music dip while the voice speaks (key = words.json, not the audio)
 
-# music level per section, LU relative to the voice in that section (after ducking); "+3 dB music" standard
-# (user standard: bed -10 instead of the old -13; sway/swing deliberately softer and warmer, rule/tourists leave room
-# for the hammer blows and the strolling footsteps)
-MUSIC_TARGET = {"hook": -9.5, "town": -10.5, "march": -10.0, "bounce": -10.0, "whistle": -9.5, "tension": -10.0,
-                "sway": -12.0, "swing": -11.5, "march2": -10.5, "rule": -11.5, "tourists": -11.0}
-
-# music rides (start, end, dB): keep the quiet sentence-final words on top; the band blooms again in the gap after them
-DIPS = [(3.65, 4.30, -3.0),     # hook fill under "...walking across it."
-        (26.95, 27.36, -2.0),   # whistling column under "...every step."
-        (32.20, 32.77, -4.0),   # tension crescendo under "...breaks step." -> blooms into the dead stop before "Then,"
-        (61.25, 61.98, -3.0)]   # rule roll under "...in step." 
-
-# report sections = shots
-_s = lambda i: T.shot_t(i)
-REPORT = [("hook (1)", 0.0, _s(1)[1]), ("town (2)", *_s(2)), ("march (3)", *_s(3)), ("bounce (4-5)", _s(4)[0], _s(5)[1]),
-          ("whistle (6)", *_s(6)), ("groan (7)", *_s(7)), ("snap+fall (8)", *_s(8)), ("water (9-10)", _s(9)[0], _s(10)[1]),
-          ("sway (11)", *_s(11)), ("swing (12)", *_s(12)), ("march2 (13)", *_s(13)), ("rule (14)", *_s(14)),
-          ("tourists (15)", _s(15)[0], T.DUR)]
-
+TARGET_DEFAULT = getattr(E, "MUSIC_TARGET_DEFAULT", -10.0)
+MUSIC_TARGET = getattr(E, "MUSIC_TARGET", {})          # music section -> LU relative to the voice
+DIPS = getattr(E, "DIPS", [])                          # music rides (start, end, dB)
+# report sections: events.REPORT, else one row per shot
+REPORT = getattr(E, "REPORT", None) or [(f"shot {i}", *T.shot_t(i)) for i in sorted(T.SHOTS)]
 
 def log(*a):
     print(f"[{time.strftime('%H:%M:%S')}]", *a, flush=True)
@@ -99,12 +86,16 @@ def section_db(m_ducked, v):
     secs = music.SECTIONS
     gains = {}
     for name, a, b in secs:
-        if name == "dropout":
+        if name == getattr(E, "SILENT_SECTION", (None,))[0]:
             continue
         seg = slice(ns(a), ns(b))
         Lm, Lv = integrated(m_ducked[:, seg]), integrated(v[:, seg])
-        gains[name] = (Lv + MUSIC_TARGET[name] - Lm) if np.isfinite(Lm) else 0.0
-    gains["dropout"] = gains["tension"]          # the dead stop's hall tail decays at the tension level
+        gains[name] = (Lv + MUSIC_TARGET.get(name, TARGET_DEFAULT) - Lm) if np.isfinite(Lm) else 0.0
+    silent = getattr(E, "SILENT_SECTION", None)  # (section with no music, section whose level its tail decays at)
+    if silent and silent[1] in gains:
+        gains[silent[0]] = gains[silent[1]]
+    for name, a, b in secs:
+        gains.setdefault(name, 0.0)
     # switch points: music is silent at the flash cut and at the end of the dropout, so those switch instantly
     pts = []
     for i, (name, a, b) in enumerate(secs):
@@ -112,12 +103,14 @@ def section_db(m_ducked, v):
     curve = np.zeros(N)
     t = np.arange(N) / SR
     for i, (a, g) in enumerate(pts):
-        a_eff = 43.1 if secs[i][0] == "sway" else a
+        a_eff = getattr(E, "SECTION_START", {}).get(secs[i][0], a)
         curve[t >= a_eff] = g
     # smooth the steps that fall inside music (0.4 s), keep the silent ones (flash, end of dropout) hard
     sm = ndimage.uniform_filter1d(curve, ns(0.4), mode="nearest")
     hard = np.zeros(N, bool)
-    for tb in (T.FLASH, 43.1):
+    for tb in getattr(E, "HARD_SWITCHES", [T.FLASH]):
+        if tb is None:
+            continue
         hard[ns(tb - 0.25): ns(tb + 0.25)] = True
     curve = np.where(hard, curve, sm)
     for a, b, db in DIPS:
@@ -285,7 +278,7 @@ def write_cues(C, b, st_, rows, eb, v_ref, G):
     vI = v_ref + G
     L = []
     w = L.append
-    w("# The Bridge That Fell for a Song - soundtrack cue sheet")
+    w(f"# {getattr(E, 'TITLE', 'Short')} - soundtrack cue sheet")
     w("")
     w("All sound is original: synthesized in numpy/scipy by `sfx_gen.py` / `instruments.py`, placed by `sfx.py` / `music.py`, mixed by `mix.py`.")
     w("Voice = `voice/voice.wav`, gain only (no EQ, no compression, no pitch).")
@@ -293,7 +286,7 @@ def write_cues(C, b, st_, rows, eb, v_ref, G):
     w("## Files")
     w("| file | content |")
     w("|---|---|")
-    w("| `mix.wav` | final mix, 48 kHz, stereo, 24-bit, 3,240,000 samples = 67.500 s |")
+    w(f"| `mix.wav` | final mix, 48 kHz, stereo, 24-bit, {N:,} samples = {T.DUR:.3f} s |")
     w("| `stem_voice.wav` / `stem_music.wav` / `stem_sfx.wav` | stems at mix gain (they sum to the mix before the master limiter) |")
     w("")
     w("## Master loudness (own BS.1770-4 meter)")

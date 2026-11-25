@@ -40,9 +40,13 @@ User rules that apply:
    - **Callback twist:** the ending.
    - Never describe on screen what the viewer already sees.
 3. **Voice.** Record or generate `voice.wav`, then make its word timings `words.json` (any speech-to-text with word times).
-   - Put them in the project folder, e.g. `~/bridge-short/voice/`.
+   - Put them in the short's project folder, `~/<name>-short/voice/` (the bridge used `~/bridge-short/`).
    - Hand-fix the word timings. Everything is timed to words.json.
-4. **Shot plan** in `story.ts`: copy `templates/bridge/` (the final bridge source, same as `src/videos/bridge/` of your Remotion project) to `src/videos/<name>/`, register a new composition next to `BridgeShort` in `src/Root.tsx`, and rename it.
+4. **Shot plan** in `story.ts`: copy `templates/bridge/` (the final bridge source, same as `src/videos/bridge/` of your Remotion project) to `src/videos/<name>/` and make it the new short's own:
+   - Rename `Bridge.tsx` to `<Name>.tsx`, its `BridgeShort` export to `<Name>Short` and `BRIDGE_FRAMES` to `<NAME>_FRAMES` (the sandbox script finds them by the exported `React.FC` and `*_FRAMES`).
+   - Register `<Name>Short` in `src/Root.tsx` next to the others (1080x1920, 30 fps).
+   - Put the Kenney kit in `public/<name>/kenney/` and set `KIT_DIR` in `world.ts`, or keep pointing it at `bridge/kenney`.
+   - Copy `scripts/` from `templates/scripts/` into the Remotion project if it isn't there yet.
    - `SHOTS`: id, a/b frames, light day/golden, crowd mode, `tau` story time.
    - `XFADE`: crossfades at place/time changes.
    - `FLASH_AT`: a white flash after the hook.
@@ -64,18 +68,23 @@ User rules that apply:
 7. **Post** (`Bridge.tsx` + `ink.ts` + `lensblur.ts` + `grade.ts`).
    - Composer order: ink → lens pre → lens main → bloom → NEUTRAL tone map → grade (MSAA 4).
    - Every pixel parameter scales with output height / 1920.
-8. **Sound** (`~/bridge-short/audio/`: timeline.py, sfx_gen.py, sfx.py, music.py, instruments.py, dsp.py, mix.py).
+8. **Sound** (`~/<name>-short/audio/`: timeline.py, events.py, sfx_gen.py, sfx.py, music.py, instruments.py, dsp.py, mix.py).
    - Event table → synthesized SFX plus an original score ducked under the voice.
    - Output: mix.wav (48 kHz, exact length), stems and cues.md.
    - Lock the picture's time constants before the sound is made. Any later timing change means re-running the sound.
-9. **Look checks.** Run `node scripts/bridge-stills.mjs out/<name>/x_ 100,400 0.5`.
-   - Set `BRIDGE_ENTRY=src/sandboxes/<n>/index.tsx` to render a sandbox copy.
+   - Copy `templates/audio/` to `~/<name>-short/audio/`. `timeline.py`, `dsp.py`, `instruments.py`, `sfx_gen.py` and `mix.py` are generic. `events.py` (story events, music section targets, rides, report sections), `sfx.py` (cue list) and `music.py` (score) are the bridge's and get rewritten for each short.
+   - Export the picture timings with `python scripts/story_shots.py src/videos/<name>/story.ts ~/<name>-short/shots.json src/videos/<name>/cast.ts`. `timeline.py` reads that file (or `$SHORT_SHOTS`): FPS, TOTAL, shots with their fields, XFADE, FLASH_AT and every numeric constant (`T.CONST["SNAP"]`), so no timing is copied by hand. Re-run it whenever story.ts changes.
+9. **Look checks.** Run `SHORT_COMP=<Name>Short node scripts/stills.mjs out/<name>/x_ 100,400 0.5`.
+   - `SHORT_COMP` can be left out when the entry registers only one composition.
+   - Set `SHORT_ENTRY=src/sandboxes/<box>/index.tsx` to render a sandbox copy.
+   - `CHROME_PATH` uses an installed Chrome; by default Remotion's own headless browser is used.
+   - Set `REMOTION_TMP` to a folder on a big drive (see Gotchas).
    - Make side-by-sides against reference frames with `python scripts/sbs_sheet.py out.jpg --ours ... --ref ...`.
    - Send them to an Opus max verifier: 1-3 images, a ≤200-word verdict.
 10. **Final render.**
     - `npx remotion render src/index.ts <Comp> out/<name>/video.mp4 --codec h264 --crf 16 --scale 1.3333`
     - Mux with `-map 0:v:0 -map 1:a:0` (Remotion writes a silent audio track).
-    - QA: `python scripts/short_qa.py final.mp4 out/<name>/qa shots.json` checks every frame for black, white, frozen and pop frames, plus loudness and sheets.
+    - QA: `python scripts/short_qa.py final.mp4 out/<name>/qa out/<name>/shots.json` (from `story_shots.py`) checks every frame for black, white, frozen and pop frames, plus loudness and sheets.
     - Fix anything it finds, then run a deep Opus audit.
 11. **Deliver.** SendUserFile the final mp4, update memory, write notes.
 
@@ -129,14 +138,14 @@ lighting 5-6, ink 6, textures 5-6, characters 7, depth 6-7, composition 6-7 (fro
 
 ## Look-match loop (how the bridge look was reached; reuse for any "make it look like X" pass)
 1. **Measure the reference first.** One analysis agent per topic (motion, depth, textures, characters, lighting, outlines, grade), each writing numbers, not adjectives, to `references/reports/<topic>.md`. Shared brief: `compare/CONTEXT.md`. Reports are the source of truth for every agent after.
-2. **Sandboxes, one owner per file.** Copy the project folder to `src/videos/<name>_{cam,world,mat,char,post}` with entries `src/sandboxes/<n>/index.tsx` (same `index.tsx` as main, only the import path changed). Ownership used for the bridge:
+2. **Sandboxes, one owner per file.** Run `python scripts/make_sandboxes.py <name>`: it copies the project folder to `src/videos/<name>_{cam,world,mat,char,post}` and writes entries `src/sandboxes/<box>/index.tsx` that register only that copy under the main composition id. Ownership used for the bridge:
    - cam: story.ts (camera keys, cuts, kicks, DOF table, foreground props)
    - world: world.ts, lights.ts, shade.ts, grade.ts (sun, sky, fog, river, colour, grade)
    - mat: paint.ts, build.ts (painted textures, buildings, props)
    - char: toon.ts, cast.ts, cardshade.ts (character drawing, posing, card lighting, fx cards)
-   - post: ink.ts, Bridge.tsx, lensblur.ts (outline pass, composer, lens blur, bloom)
-   Agents only edit their own files in their own sandbox and render stills with `BRIDGE_ENTRY=src/sandboxes/<n>/index.tsx node scripts/bridge-stills.mjs out/<name>/<n>/x_ <frames> 0.5`.
-3. **Merge** with `python scripts/bridge_merge.py [cam,world,mat,char,post]` (backs main up to `backup/bridge_<time>/`, copies owned files only). Then `npx tsc --noEmit` (filter to the project folder), then **re-sync every sandbox from main** (`cp -f src/videos/<name>/* src/videos/<name>_<n>/`) before the next round.
+   - post: ink.ts, `<Name>.tsx` (Bridge.tsx for the bridge), lensblur.ts (outline pass, composer, lens blur, bloom)
+   Agents only edit their own files in their own sandbox and render stills with `SHORT_ENTRY=src/sandboxes/<box>/index.tsx node scripts/stills.mjs out/<name>/<box>/x_ <frames> 0.5`.
+3. **Merge** with `python scripts/sandbox_merge.py <name> [cam,world,mat,char,post]` (backs main up to `backup/<name>_<time>/`, copies owned files only). Then `npx tsc --noEmit` (filter to the project folder), then **re-sync every sandbox from main** with `python scripts/make_sandboxes.py <name>` before the next round.
 4. **Verify** with a fresh Opus max agent: side-by-side sheets (`python scripts/sbs_sheet.py out.jpg --ours a b --ref r1 r2`), score each area out of 10 (colour day / golden, lighting, ink, textures, characters, depth, composition) plus a numbered fix list with frame numbers. Map each fix to the file owner and resume that owner's agent with SendMessage (keeps its context). Bridge scores: round 1 5/3/4/5/4/7/4/6 → round 2 5/4/5/6/4/7/6/6 → round 3 see notes.
 5. Contracts between owners live in exported constants (e.g. `NOINK` layer from ink.ts, `dofAt`/`FOREGROUND` from story.ts, `LIGHTS`/`LOOK` from lights.ts). Changing a contract means telling every owner that reads it.
 
@@ -145,7 +154,7 @@ lighting 5-6, ink 6, textures 5-6, characters 7, depth 6-7, composition 6-7 (fro
 - Cameras end up inside houses: the sight-line culler in build.ts/world.ts removes anything blocking any camera ray.
 - Ink in the same merged effect pass as DOF gets overwritten. Ink must be its own pass before the blur.
 - Pixel-sized post parameters must scale with resolution: stills are at 0.5, the final at 1.333. R3F clamps dpr to ≥ 1, so `--scale 0.5` stills still render a 1080x1920 buffer.
-- **Disk:** every Remotion bundle copies `public/` (~1.3 GB) into `the temp folder\remotion-webpack-bundle-*` and never deletes it. 60+ GB filled the system drive during the bridge passes and a render died with ENOSPC. Always render with `export TEMP='<big drive>/remotion-tmp' TMP='<big drive>/remotion-tmp'` (bridge-stills.mjs sets it itself) and ask the user before deleting old bundle folders in the shared the temp folder (auto mode blocks the sweep). <big drive>/remotion-tmp fills too (~500 folders / 110 GB after the 4 bridge rounds): when a project is finished and nothing is rendering, delete its `remotion-webpack-bundle-*` and `puppeteer_dev_chrome_profile-*` folders there.
+- **Disk:** every Remotion bundle copies `public/` (~1.3 GB) into `<temp folder>/remotion-webpack-bundle-*` and never deletes it. 60+ GB filled the system drive during the bridge passes and a render died with ENOSPC. Always set `REMOTION_TMP=<big drive>/remotion-tmp` (stills.mjs points TEMP/TMP/TMPDIR there itself; for `npx remotion render` set `TEMP`, `TMP` and `TMPDIR` to it as well) and ask the user before deleting old bundle folders in the shared temp folder (auto mode blocks the sweep). <big drive>/remotion-tmp fills too (~500 folders / 110 GB after the 4 bridge rounds): when a project is finished and nothing is rendering, delete its `remotion-webpack-bundle-*` and `puppeteer_dev_chrome_profile-*` folders there.
 - In JS strings write `"<big drive>/remotion-tmp"`, never `"<big drive>\remotion-tmp"` (`\r` becomes a carriage return).
 - Remotion writes a silent audio track: mux with `-map 0:v:0 -map 1:a:0`.
 - Sub-agents can't write report files in this harness: ask them for a ≤150-word final message and save it yourself to `out/<name>/<n>/REPORT.md`.
