@@ -11,7 +11,8 @@ Proven on **The Bridge That Fell for a Song**, a 67 s short about the 1831 Broug
 |---|---|
 | `SKILL.md` | The skill: the full pipeline, every rule, every fix, and the final look values |
 | `templates/bridge/` | The full source of the bridge short: world, characters, ink, lens blur, grade, story/camera |
-| `templates/audio/` | The synthesized sound: SFX, march music, the mix with ducking and loudness. `events.py`, `sfx.py` and `music.py` are per short; the rest is generic |
+| `templates/audio/` | The synthesized sound: SFX, march music, the mix with ducking and loudness. `events.py`, `sfx.py` and `music.py` are per short; the rest is generic. `brand_audio.py` is the One Fix Later sound kit (workshop underscore + brand SFX) |
+| `templates/brand/` | One Fix Later brand kit: palette and rules (`brand.ts`), Juno (`juno.ts`), captions, term labels and sketch wipe (`overlay.ts`, `BrandOverlay.tsx`), fonts (`fonts.ts`) |
 | `templates/scripts/` | Stills, shot export (`story_shots.py`), look sandboxes (`make_sandboxes.py`, `sandbox_merge.py`), side-by-side sheets and frame-by-frame QA |
 | `references/STYLE_BIBLE.md` | The script and visual formula measured from 20 reference shorts |
 | `references/reports/` | Seven measured reports: motion, depth, textures, characters, lighting, outlines, grade |
