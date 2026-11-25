@@ -15,8 +15,22 @@ The style reference is a channel studied privately (`references/`: STYLE_BIBLE.m
 - Never copy their scripts, characters or shots. Story, characters and voice are always OUR OWN.
 - Never say the channel's name in a voice-over or description.
 
+## Channel brand: One Fix Later (locked 2026-11-25, applies to every new short)
+Brand kit: `templates/brand/` (brand.ts, juno.ts, overlay.ts, BrandOverlay.tsx, fonts.ts) and `templates/audio/brand_audio.py`.
+The bridge files stay as the technique reference; a new short replaces its look and cast with the brand kit.
+- **Niche:** how big machines and buildings work, built up from the simplest fix. First short: the building lift (hoist/elevator).
+- **No intro, no outro, no jingle.** Frame 0 is the hook; the video ends right after the twist and "Follow for the next fix."
+- **Main character: Juno** (`juno.ts`, `junoReq()` for cast.ts Pool). She acts out every fix; her first try fails (boing), the fix is sketched (blueprint wipe) and then built.
+- **Palette** (`PAL` in brand.ts): Biru Cetak #16325C, Toska #1FA79A, Coral #FF6B4A, Kapur #F4F1E8, Kuning Pensil #F2C14E (max one pencil icon per scene). Brand elements use only these; story objects keep their real colours. Problem beats = coral accent, fix beats = teal accent.
+- **Fonts:** Fredoka 600 (labels, thumbnails), Nunito 800 (captions), loaded with `fonts.ts`.
+- **Captions ON:** 2-4 word phrases at 62 % of the frame height on a translucent Biru Cetak pill, keyword underlined in coral, 4-frame pop (`BrandOverlay`). Never one-word karaoke, never white-with-black-outline at the top.
+- **Term labels:** each new term gets a blueprint tag written letter by letter, flown from Juno's sketchbook to a pin on the object (`drawTermLabel`), with a wooden tick.
+- **Narration (English, "you"):** simple first try → "But …" problem → "So you …"/"Easy fix:" fix → "Meet the ___." term. 5-7 terms per 60-90 s short, ~3 words/s, sentences of 9-12 words, no questions. 2-3 acts split by "Fast forward:". Ends on a surprising everyday twist, then "Follow for the next fix."
+- **Never** (too close to the studied explainer): "That's the ___", "If you ___, you've got a ___", a rope-over-a-tree-branch opener, "Now …" act breaks, "send this to that friend …", phone/hand CTA animations, tower cranes as a topic. `NARRATION.banned` in brand.ts holds these patterns: check the script against them.
+- **Sound:** `brand_audio.workshop()` (110 bpm wood percussion, pizzicato bass, marimba; one level up per "Fast forward:") replaces the march; brand SFX `pencil_scratch`, `fix_click`, `fail_boing`, `label_tick`. Mix target -14 LUFS, music ~8 dB under the voice.
+
 User rules that apply:
-- No captions or labels in the video.
+- Captions and term labels follow the brand kit above (this replaces the old "no captions or labels" rule).
 - English only.
 - Voice: one steady tone.
 - Jokes are researched real facts.
@@ -30,6 +44,7 @@ User rules that apply:
 1. **Topic and facts.** Pick one surprising true story with a physical cause and effect (it should be visual), plus a simple everyday analogy that explains it.
    - Write the facts with their source at the top of `SCRIPT.md`.
 2. **Script** (~3.7 words/s, 55-70 s). Beat formula from the bridge short:
+   - For One Fix Later shorts use the brand narration pattern above instead of this formula.
    - **Hook:** the absurd fact in one line ("Seventy-four soldiers knocked down an iron bridge just by walking across it.").
    - **Setting:** year, place, pride.
    - **Action:** escalation over three or four beats, each a little bigger.
@@ -62,14 +77,15 @@ User rules that apply:
    - `paint.ts`: HD Canvas2D painted textures with seams painted in as dark tints.
    - `world.ts`: sky shader, fog = horizon colour, river, per-frame posing, sun frozen per shot and camera-relative.
 6. **Characters.**
-   - `toon.ts`: the Canvas2D `Pen` drawing API, 600x1000 design canvas, soles at y = 975, bean heads, stick limbs, plum variable-width outline, face library.
+   - `toon.ts`: the Canvas2D `Pen` drawing API, 600x1000 design canvas, soles at y = 975, bean heads, stick limbs, plum variable-width outline, face library (bridge cast only).
+   - Brand cast: Juno from `templates/brand/juno.ts` (same 600x1000 space, uniform Biru Cetak outline). Supporting characters for brand shorts use the brand construction (wide round head, oval eyes, thick brows, one coral accessory), not the bean head.
    - `cast.ts`: camera-facing billboards, crowds, effect cards, blinks, walk cycles. All billboards go on the `NOINK` layer.
    - `cardshade.ts`: cards lit by the scene light, no emissive.
 7. **Post** (`Bridge.tsx` + `ink.ts` + `lensblur.ts` + `grade.ts`).
    - Composer order: ink → lens pre → lens main → bloom → NEUTRAL tone map → grade (MSAA 4).
    - Every pixel parameter scales with output height / 1920.
 8. **Sound** (`~/<name>-short/audio/`: timeline.py, events.py, sfx_gen.py, sfx.py, music.py, instruments.py, dsp.py, mix.py).
-   - Event table → synthesized SFX plus an original score ducked under the voice.
+   - Event table → synthesized SFX plus an original score ducked under the voice. Brand shorts: music.py calls `brand_audio.workshop(T.DUR, act_breaks)`; sfx.py adds the brand SFX at the FIXES / FAILS / TERMS times from events.py.
    - Output: mix.wav (48 kHz, exact length), stems and cues.md.
    - Lock the picture's time constants before the sound is made. Any later timing change means re-running the sound.
    - Copy `templates/audio/` to `~/<name>-short/audio/`. `timeline.py`, `dsp.py`, `instruments.py`, `sfx_gen.py` and `mix.py` are generic. `events.py` (story events, music section targets, rides, report sections), `sfx.py` (cue list) and `music.py` (score) are the bridge's and get rewritten for each short.
